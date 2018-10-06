@@ -8,7 +8,7 @@ For example:
 result = RMQTest.Sender.calculate(n)
 ```
 
-While this function call behaves synchronously from the outside it actually uses an asynchronous request / reply mechanism internally - because this is how most brokers work.
+While this function call behaves synchronously on the outside it actually uses an asynchronous request / reply mechanism internally - because this is how most brokers work.
 
 ## Technical details
 
