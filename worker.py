@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import pika
 import time
-import msgpack
+import json
 import multiprocessing
 
 NUM_WORKERS = 8
@@ -25,19 +25,25 @@ class RMQWorker(object):
         self.channel.start_consuming()
 
     def callback(self, ch, method, properties, body):
-        msg = msgpack.unpackb(body, raw=True)
+        msg = json.loads(body)
         print(f" [{self.num}] Received %r" % msg)
         ch.basic_ack(delivery_tag = method.delivery_tag)
 
-        cmd = msg[b'command'].decode('utf-8')
+        cmd = msg['command']
         if cmd == 'calculate':
-            val = msg[b'params'][b'value']
-            resp_queue = msg[b'respond_to'].decode('utf-8')
+            val = msg['params']['value']
+            resp_queue = msg['respond_to']
 
             print(f" [{self.num}] Calculating value ...")
             ret = calculate(val)
-            print(f" [{self.num}] Done! Sending result ...")
-            ch.basic_publish(exchange="", routing_key=resp_queue, body=msgpack.packb({"result": ret}, use_bin_type=True))
+
+            response = {
+                'task_id': msg['task_id'],
+                'result': ret
+            }
+
+            print(f" [{self.num}] Done! Sending result: {response}")
+            ch.basic_publish(exchange="", routing_key=resp_queue, body=json.dumps(response))
 
 def start_worker(num):
     print(f"Starting worker: {num}")

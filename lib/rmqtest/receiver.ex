@@ -2,26 +2,16 @@ defmodule RMQTest.Receiver do
   use GenServer
   use AMQP
 
-  def start_link({from, channel}) do
-    GenServer.start_link(__MODULE__, %{:channel => channel, :from => from})
+  def start_link([channel: channel, out_queue: out_queue, in_queue: in_queue]) do
+    initial_state = %{ channel: channel, out_queue: out_queue, in_queue: in_queue }
+    GenServer.start_link(__MODULE__, initial_state, name: __MODULE__)
   end
-
-  def queue_name?(pid) do
-    GenServer.call(pid, {:queue_name})
-  end
-
-  # def calculate(value) do
-  #   GenServer.call(__MODULE__, {:calculate, value})
-  # end
 
   ## Server Callbacks
+
   def init(state) do
-    {:ok, response_queue} = Queue.declare(state.channel, "", [exclusive: true, durable: true])
-    state = Map.put(state, :response_queue, response_queue)
-
-    # Consume messages
-    {:ok, _consumer_tag} = Basic.consume(state.channel, response_queue.queue)
-
+    # Start consuming messages
+    {:ok, _consumer_tag} = Basic.consume(state.channel, state.in_queue.queue)
     {:ok, state}
   end
 
@@ -31,16 +21,19 @@ defmodule RMQTest.Receiver do
     {:noreply, chan}
   end
 
-  def handle_info({:basic_deliver, payload, %{delivery_tag: _tag, redelivered: _redelivered}}, state) do
-    #spawn fn -> consume(chan, tag, redelivered, payload) end
-    {:ok, data} = :msgpack.unpack(payload)
+  def handle_info({:basic_deliver, payload, %{delivery_tag: delivery_tag, redelivered: _redelivered}}, state) do
+    AMQP.Basic.ack(state.channel, delivery_tag)
+    data = Poison.decode!(payload)
+    IO.puts("Received data:")
     IO.inspect(data)
-    GenServer.reply(state.from, {:done, Map.get(data, 'result')})
+
+    with task_id <- Map.get(data, "task_id"),
+         result <- Map.get(data, "result")
+    do
+      Registry.dispatch(:rmqtest, task_id, fn(listeners) ->
+        for {pid, _} <- listeners, do: send(pid, {:broadcast, result})
+      end)
+    end
     {:noreply, state}
   end
-
-  def handle_call({:queue_name}, _from, state) do
-    {:reply, state.response_queue.queue, state}
-  end
-
 end
