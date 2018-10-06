@@ -3,11 +3,6 @@ defmodule RMQTest do
   use AMQP
 
   def start(_type, _args) do
-    # children = [
-    #   {RMQTest.Server, []}
-    # ]
-    # Supervisor.start_link(children, strategy: :one_for_one)
-
     # Initialize AMQP channel and queues
     {:ok, connection} = Connection.open()
     {:ok, channel} = Channel.open(connection)
