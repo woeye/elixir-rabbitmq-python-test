@@ -1,0 +1,12 @@
+.DS_Store
+
+# App artifacts
+/_build
+/deps
+/pgdata
+/.elixir_ls
+/*.ez
+
+# Generated on crash by the VM
+erl_crash.dump
+
